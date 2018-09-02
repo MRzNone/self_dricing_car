@@ -185,7 +185,7 @@ class Game(Widget):
         self.dest = dest
         self.circle = circle
 
-    def update(self, dt):
+    def update(self):
 
         global brain
         global last_reward
@@ -295,19 +295,22 @@ class CarApp(App):
         dest = Destinity()
 
         parent.serve_car(circle = circle, dest = dest, sec_num = sec_num, box_size = box_size, brain = self.brain)
-        Clock.schedule_interval(parent.update, 1.0/60.0)
+        Clock.schedule_interval(self.pauseCheck, 1.0/60.0)
         #Clock.schedule_interval(parent.update, 0)
         self.painter = MyPaintWidget()
         clearbtn = Button(text = 'clear')
         savebtn = Button(text = 'save', pos = (parent.width, 0))
         loadbtn = Button(text = 'load', pos = (2 * parent.width, 0))
+        pausebtn = Button(text = 'start', pos = (2 * parent.width, 0))
         clearbtn.bind(on_release = self.clear_canvas)
         savebtn.bind(on_release = self.save)
         loadbtn.bind(on_release = self.load)
+        pausebtn.bind(on_release = self.pauseSwitch)
         parent.add_widget(self.painter)
         parent.add_widget(clearbtn)
         parent.add_widget(savebtn)
         parent.add_widget(loadbtn)
+        parent.add_widget(pausebtn)
         parent.add_widget(dest)
         parent.add_widget(circle)
         return parent
@@ -325,10 +328,13 @@ class CarApp(App):
                 self.parent.car.center[1] = largeur * 0.25
                 self.painter.canvas.clear()
                 init()
-                self.last_signal = self.parent.update(enable = False, sec_num = self.sec_num, box_size = self.box_size)
+                self.parent.update()
                 self.parent.updateGoal()
                 self.last_size[0] = self.parent.size[0]
                 self.last_size[1] = self.parent.size[1]
+
+    def pauseSwitch(self,obj):
+        self.paused = 1 - self.paused
 
     def clear_canvas(self, obj):
         global sand
