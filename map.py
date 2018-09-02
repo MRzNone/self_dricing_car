@@ -166,18 +166,24 @@ class Game(Widget):
 
 
     def updateGoal(self):
-        dist = 150
         global goal_x, goal_y
 
-        if goal_x == dist:
-            goal_x = longueur - dist
-            goal_y = dist
+        if len(self.goals) == 0:
+            dist = 200
+            if goal_x == dist:
+                goal_x = longueur - dist
+                goal_y = dist
+            else:
+                goal_x = dist
+                goal_y = largeur - dist
         else:
-            goal_x = dist
-            goal_y = largeur - dist
+            goal_x = self.goals[self.goal_index][0]
+            goal_y = self.goals[self.goal_index][1]
+            self.goal_index += 1
+            self.goal_index = self.goal_index % len(self.goals)
         self.dest.center = (goal_x, goal_y)
 
-    def serve_car(self, sec_num, box_size, brain, circle, dest):
+    def serve_car(self, sec_num, box_size, brain, circle, dest, goals):
         self.car.center = self.center
         self.car.velocity = Vector(6, 0)
         self.sec_num = sec_num
@@ -185,6 +191,8 @@ class Game(Widget):
         self.brain = brain
         self.dest = dest
         self.circle = circle
+        self.goals = goals
+        self.goal_index = 0
 
     def update(self):
 
@@ -252,30 +260,43 @@ class Game(Widget):
 
 class MyPaintWidget(Widget):
 
+    def __init__(self, goals):
+        super(MyPaintWidget, self).__init__()
+        self.setgoals = True
+        self.goals = goals
+
+
     def on_touch_down(self, touch):
         global length, n_points, last_x, last_y
-        with self.canvas:
-            Color(0.8,0.7,0)
-            d = 10.
-            touch.ud['line'] = Line(points = (touch.x, touch.y), width = 10)
-            last_x = int(touch.x)
-            last_y = int(touch.y)
-            n_points = 0
-            length = 0
-            sand[int(touch.x),int(touch.y)] = 1
+        if self.setgoals == False:
+            with self.canvas:
+                Color(0.8,0.7,0)
+                d = 10.
+                touch.ud['line'] = Line(points = (touch.x, touch.y), width = 10)
+                last_x = int(touch.x)
+                last_y = int(touch.y)
+                n_points = 0
+                length = 0
+                sand[int(touch.x),int(touch.y)] = 1
+        else:
+            self.goals.append( (int(touch.x), int(touch.y)) )
+            self.parent.dest.center = ((int(touch.x), int(touch.y)))
 
     def on_touch_move(self, touch):
         global length, n_points, last_x, last_y
-        if touch.button == 'left':
-            touch.ud['line'].points += [touch.x, touch.y]
-            x = int(touch.x)
-            y = int(touch.y)
-            length += np.sqrt(max((x - last_x)**2 + (y - last_y)**2, 2))
-            n_points += 1.
-            touch.ud['line'].width = int(30)
-            sand[int(touch.x) - 15 : int(touch.x) + 15, int(touch.y) - 15 : int(touch.y) + 15] = 1
-            last_x = x
-            last_y = y
+        if self.setgoals == False:
+            if touch.button == 'left':
+                touch.ud['line'].points += [touch.x, touch.y]
+                x = int(touch.x)
+                y = int(touch.y)
+                length += np.sqrt(max((x - last_x)**2 + (y - last_y)**2, 2))
+                n_points += 1.
+                touch.ud['line'].width = int(30)
+                sand[int(touch.x) - 15 : int(touch.x) + 15, int(touch.y) - 15 : int(touch.y) + 15] = 1
+                last_x = x
+                last_y = y
+        else:
+            pass
 
 # Adding the API Buttons (clear, save and load)
 
@@ -284,32 +305,35 @@ class CarApp(App):
     def build(self):
         self.paused = True
         self.last_size = [0,0]
+        self.goals = []
 
         self.parent = Game()
         parent = self.parent
-        sec_num = 12
+        sec_num = 36
         box_size = 150
         self.brain = Dqn(sec_num * 2 + 2,3,0.9)
 
         circle = Circle()
         dest = Destinity()
 
-        parent.serve_car(circle = circle, dest = dest, sec_num = sec_num, box_size = box_size, brain = self.brain)
+        parent.serve_car(circle = circle, dest = dest, sec_num = sec_num, box_size = box_size, brain = self.brain, goals = self.goals)
         Clock.schedule_interval(self.pauseCheck, 1.0/60.0)
         #Clock.schedule_interval(parent.update, 0)
 
-        self.painter = MyPaintWidget()
+        self.painter = MyPaintWidget(self.goals)
         clearbtn = Button(text = 'clear')
         savebtn = Button(text = 'save', pos = (parent.width, 0))
         loadbtn = Button(text = 'load', pos = (2 * parent.width, 0))
         self.pausebtn = Button(text = 'start', pos = (3 * parent.width, 0))
         plotbtn = Button(text = 'plot', pos = (4 * parent.width, 0))
+        self.setGoalsbtn = Button(text = 'set goals', pos = (5 * parent.width, 0))
 
         clearbtn.bind(on_release = self.clear_canvas)
         savebtn.bind(on_release = self.save)
         loadbtn.bind(on_release = self.load)
         self.pausebtn.bind(on_release = self.pauseSwitch)
         plotbtn.bind(on_release = self.plot)
+        self.setGoalsbtn.bind(on_release = self.setGoals)
 
         parent.add_widget(self.painter)
         parent.add_widget(clearbtn)
@@ -317,6 +341,7 @@ class CarApp(App):
         parent.add_widget(loadbtn)
         parent.add_widget(self.pausebtn)
         parent.add_widget(plotbtn)
+        parent.add_widget(self.setGoalsbtn)
 
         parent.add_widget(dest)
         parent.add_widget(circle)
@@ -336,7 +361,8 @@ class CarApp(App):
                 self.painter.canvas.clear()
                 init()
                 self.parent.update()
-                self.parent.updateGoal()
+                del self.goals[:]
+                print('goals cleared')
                 self.last_size[0] = self.parent.size[0]
                 self.last_size[1] = self.parent.size[1]
 
@@ -346,6 +372,15 @@ class CarApp(App):
             self.pausebtn.text = 'start'
         else:
             self.pausebtn.text = 'pause'
+            self.parent.updateGoal()
+
+    def setGoals(self, obj):
+        self.painter.setgoals = 1 - self.painter.setgoals
+
+        if self.painter.setgoals == True:
+            self.setGoalsbtn.text = 'setting goals'
+        else:
+            self.setGoalsbtn.text = 'drawing'
 
     def plot(self, obj):
         plt.plot(scores)

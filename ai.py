@@ -14,7 +14,6 @@ from torch.autograd import Variable
 
 # creating the architecture of the Neural Network
 
-nm_hidden_layer = 30
 
 class Network(nn.Module):
 
@@ -22,13 +21,13 @@ class Network(nn.Module):
         super(Network, self).__init__()
         self.input_sizse = input_size
         self.nb_action = nb_action
-        self.fc1 = nn.Linear(self.input_sizse, nm_hidden_layer)
-        self.fc2 = nn.Linear(nm_hidden_layer, self.nb_action)
+        self.fc1 = nn.Linear(self.input_sizse, 100)
+        self.fc2 = nn.Linear(100, self.nb_action)
 
     def forward(self, state):
         x = F.relu(self.fc1(state))
-        q_values = self.fc2(x)
-        return q_values
+        x = self.fc2(x)
+        return x
 
 # implementing experience Replay
 
