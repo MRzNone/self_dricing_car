@@ -16,6 +16,7 @@ from kivy.properties import NumericProperty, ReferenceListProperty, ObjectProper
 from kivy.vector import Vector
 from kivy.clock import Clock
 import math
+import thread
 
 # Importing the Dqn object from our AI in ai.py
 from ai import Dqn
@@ -271,9 +272,8 @@ class MyPaintWidget(Widget):
             y = int(touch.y)
             length += np.sqrt(max((x - last_x)**2 + (y - last_y)**2, 2))
             n_points += 1.
-            density = n_points/(length)
-            touch.ud['line'].width = int(20 * density + 1)
-            sand[int(touch.x) - 10 : int(touch.x) + 10, int(touch.y) - 10 : int(touch.y) + 10] = 1
+            touch.ud['line'].width = int(30)
+            sand[int(touch.x) - 15 : int(touch.x) + 15, int(touch.y) - 15 : int(touch.y) + 15] = 1
             last_x = x
             last_y = y
 
@@ -297,20 +297,27 @@ class CarApp(App):
         parent.serve_car(circle = circle, dest = dest, sec_num = sec_num, box_size = box_size, brain = self.brain)
         Clock.schedule_interval(self.pauseCheck, 1.0/60.0)
         #Clock.schedule_interval(parent.update, 0)
+
         self.painter = MyPaintWidget()
         clearbtn = Button(text = 'clear')
         savebtn = Button(text = 'save', pos = (parent.width, 0))
         loadbtn = Button(text = 'load', pos = (2 * parent.width, 0))
-        pausebtn = Button(text = 'start', pos = (2 * parent.width, 0))
+        self.pausebtn = Button(text = 'start', pos = (3 * parent.width, 0))
+        plotbtn = Button(text = 'plot', pos = (4 * parent.width, 0))
+
         clearbtn.bind(on_release = self.clear_canvas)
         savebtn.bind(on_release = self.save)
         loadbtn.bind(on_release = self.load)
-        pausebtn.bind(on_release = self.pauseSwitch)
+        self.pausebtn.bind(on_release = self.pauseSwitch)
+        plotbtn.bind(on_release = self.plot)
+
         parent.add_widget(self.painter)
         parent.add_widget(clearbtn)
         parent.add_widget(savebtn)
         parent.add_widget(loadbtn)
-        parent.add_widget(pausebtn)
+        parent.add_widget(self.pausebtn)
+        parent.add_widget(plotbtn)
+
         parent.add_widget(dest)
         parent.add_widget(circle)
         return parent
@@ -335,6 +342,14 @@ class CarApp(App):
 
     def pauseSwitch(self,obj):
         self.paused = 1 - self.paused
+        if self.paused == True:
+            self.pausebtn.text = 'start'
+        else:
+            self.pausebtn.text = 'pause'
+
+    def plot(self, obj):
+        plt.plot(scores)
+        plt.show()
 
     def clear_canvas(self, obj):
         global sand
