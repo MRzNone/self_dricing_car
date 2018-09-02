@@ -66,7 +66,6 @@ class Dqn():
 
     def select_action(self, state):
         guess = self.model(Variable(state, volatile = True))
-        print(guess)
         probs = F.softmax(guess * 7)  # temperature = 7, higher => higher certainty
         action = probs.multinomial()
         return action.data[0,0]
@@ -103,10 +102,15 @@ class Dqn():
     def score(self):
         return sum(self.reward_window) / (len(self.reward_window) + 1)
 
-    def save(self):
-        torch.save({'state_dic': self.model.state_dict(),
-                    'optimizer': self.optimizer.state_dict()
-                    }, 'last_brain' + str(self.input_size) + '.pth')
+    def save(self, name = None):
+        if name != None:
+            torch.save({'state_dic': self.model.state_dict(),
+                        'optimizer': self.optimizer.state_dict()
+                        }, name + str(self.input_size) + '.pth')
+        else:
+            torch.save({'state_dic': self.model.state_dict(),
+                        'optimizer': self.optimizer.state_dict()
+                        }, 'last_brain' + str(self.input_size) + '.pth')
 
     def load(self):
         if (os.path.isfile('last_brain' + str(self.input_size) + '.pth')):

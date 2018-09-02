@@ -18,6 +18,7 @@ from kivy.clock import Clock
 import math
 import thread
 import skimage.measure
+import datetime
 
 # Importing the Dqn object from our AI in ai.py
 from ai import Dqn
@@ -236,6 +237,8 @@ class Game(Widget):
         self.circle = circle
         self.goals = goals
         self.goal_index = 0
+        self.consecutive_pos = 0
+        self.goal_num = 9
 
     def update(self):
 
@@ -267,6 +270,13 @@ class Game(Widget):
         last_signal.append(orientation)
         last_signal.append(-orientation)
 
+        if last_reward > 0:
+            if self.consecutive_pos > self.goal_num:
+                self.goal_num += 30
+                self.brain.save(str(datetime.datetime.now()))
+            self.consecutive_pos += 1
+        else:
+            self.consecutive_pos = 0
         action = self.brain.update(last_reward, last_signal)
         scores.append(self.brain.score())
         rotation = action2rotation[action]
@@ -314,7 +324,7 @@ class MyPaintWidget(Widget):
 
     def __init__(self, goals):
         super(MyPaintWidget, self).__init__()
-        self.setgoals = True
+        self.setgoals = False
         self.goals = goals
 
 
@@ -380,7 +390,7 @@ class CarApp(App):
         loadbtn = Button(text = 'load', pos = (2 * parent.width, 0))
         self.pausebtn = Button(text = 'start', pos = (3 * parent.width, 0))
         plotbtn = Button(text = 'plot', pos = (4 * parent.width, 0))
-        self.setGoalsbtn = Button(text = 'set goals', pos = (5 * parent.width, 0))
+        self.setGoalsbtn = Button(text = 'drawing', pos = (5 * parent.width, 0))
 
         clearbtn.bind(on_release = self.clear_canvas)
         savebtn.bind(on_release = self.save)
@@ -404,7 +414,6 @@ class CarApp(App):
     def pauseCheck(self, dt):
         if self.paused == False:
             self.parent.update()
-            print(dt)
         else:
             if self.last_size != self.parent.size:
                 print("resized")
@@ -438,6 +447,8 @@ class CarApp(App):
             self.setGoalsbtn.text = 'setting goals'
         else:
             self.setGoalsbtn.text = 'drawing'
+            del self.goals[:]
+            print('goals cleared')
 
     def plot(self, obj):
         plt.plot(scores)
@@ -447,6 +458,7 @@ class CarApp(App):
         global sand
         self.painter.canvas.clear()
         sand = np.zeros((longueur,largeur))
+        shrink_updated = False
 
     def save(self, obj):
         print("saving brain...")
