@@ -17,6 +17,7 @@ from kivy.vector import Vector
 from kivy.clock import Clock
 import math
 import thread
+import skimage.measure
 
 # Importing the Dqn object from our AI in ai.py
 from ai import Dqn
@@ -31,7 +32,7 @@ n_points = 0
 length = 0
 
 # Getting our AI, which we call "brain", and that contains our neural network that represents our Q-function
-action2rotation = [0,20,-20]
+action2rotation = [0,15,-15]
 last_reward = 0
 scores = []
 
@@ -42,6 +43,7 @@ def init():
     global goal_x
     global goal_y
     global first_update
+    global shrink_sand
     sand = np.zeros((longueur,largeur))
     goal_x = 20
     goal_y = largeur - 20
@@ -49,6 +51,7 @@ def init():
 
 # Initializing the last distance
 last_distance = 0
+shrink_updated = False
 
 # Creating the car class
 
@@ -124,25 +127,65 @@ class Car(Widget):
          #print(i)
          return result
 
-    def fromLidarToDensity(self, point_num, num, box_size):
-         lidar = self.getPolarLidar(point_num, box_size)
-         anglePerSector = int(point_num / num)
-         result = []
+    def getShrinkPolarLidar(self, num, box_size, shrink_factor):
+        global shrink_sand
+        result = [-1] * num
+        pt = [self.center[0], self.center[1]]
+        pt[0] = pt[0] / shrink_factor
+        pt[1] = pt[1] / shrink_factor
+        rotation = self.velocity
 
-         for i in range(num):
-             index = i * anglePerSector
-             sum = 0
-             count = 0
-             for j in range(index, index + anglePerSector):
-                 if lidar[j] != -1:
-                     count += 1
-                     sum += lidar[j]
-             if count != 0:
-                 result.append(sum / count)
-             else:
-                 result.append(0)
-             result.append(count)
-         return result
+        clamp = lambda n, minn, maxn: max(min(maxn, n), minn)
+        half = int(math.floor(box_size / 2 / shrink_factor))
+
+        x_range = range( clamp(int(pt[0] - half), 0, longueur / 2 - 1)  , clamp(int(pt[0] + half), 0, longueur / 2 - 1)  )
+        y_range = range( clamp(int(pt[1] - half), 0, largeur / 2 - 1) , clamp(int(pt[1] + half), 0, largeur / 2 - 1))
+
+        st = time.time()
+        i = 0
+        for px in x_range:
+         for py in y_range:
+             i += 1
+             if shrink_sand[px][py] != 0 or px == 0 or px == largeur - 1 or py == 0 or py == largeur - 1:
+                 #print((px, py))
+                 dx = px - pt[0]
+                 dy = py - pt[1]
+                 angle = Vector(*rotation).angle((dx,dy))
+                 if angle < 0 :
+                     angle = 360.0 + angle
+
+                 dist = Vector(px,py).distance(pt)
+                 index = int(math.floor(angle / 360 * num))
+                 index = clamp(index, 0, num - 1)
+
+                 if dist < box_size and (result[index] == -1 or result[index] > dist):
+                     result[index] = dist
+
+        #print("sig:  " + str(time.time() - st))
+        #print(i)
+        return result
+
+    def fromLidarToDensity(self, point_num, num, box_size, lidar = None):
+        if lidar == None:
+            lidar = self.getShrinkPolarLidar(point_num, box_size, 2)
+            #lidar = self.getPolarLidar(point_num, box_size)
+        anglePerSector = int(point_num / num)
+        result = []
+
+        for i in range(num):
+            index = i * anglePerSector
+            sum = 0
+            count = 0
+            for j in range(index, index + anglePerSector):
+                if lidar[j] != -1:
+                    count += 1
+                    sum += lidar[j]
+            if count != 0:
+                result.append(sum / count)
+            else:
+                result.append(0)
+            result.append(count)
+        return result
 
 class Ball1(Widget):
     pass
@@ -204,12 +247,16 @@ class Game(Widget):
         global goal_y
         global longueur
         global largeur
+        global shrink_updated, sand
 
         longueur = self.width
         largeur = self.height
         if first_update:
             init()
             self.updateGoal()
+
+        if shrink_updated == False:
+            self.shrinkSand(sand, (2,2))
 
         xx = goal_x - self.car.x
         yy = goal_y - self.car.y
@@ -252,9 +299,14 @@ class Game(Widget):
             self.car.y = self.height - 10
             last_reward = -1
 
-        if distance < 100:
+        if distance < 50:
             self.updateGoal()
         last_distance = distance
+
+    def shrinkSand(self, m, kernale_shape):
+        global shrink_sand, shrink_updated
+        shrink_sand = skimage.measure.block_reduce(m, kernale_shape, np.max)
+        shrink_updated = True
 
 # Adding the painting tools
 
@@ -278,6 +330,7 @@ class MyPaintWidget(Widget):
                 n_points = 0
                 length = 0
                 sand[int(touch.x),int(touch.y)] = 1
+                shrink_updated = False
         else:
             self.goals.append( (int(touch.x), int(touch.y)) )
             self.parent.dest.center = ((int(touch.x), int(touch.y)))
@@ -295,6 +348,7 @@ class MyPaintWidget(Widget):
                 sand[int(touch.x) - 15 : int(touch.x) + 15, int(touch.y) - 15 : int(touch.y) + 15] = 1
                 last_x = x
                 last_y = y
+                shrink_updated = False
         else:
             pass
 
@@ -310,7 +364,7 @@ class CarApp(App):
         self.parent = Game()
         parent = self.parent
         sec_num = 36
-        box_size = 150
+        box_size = 400
         self.brain = Dqn(sec_num * 2 + 2,3,0.9)
 
         circle = Circle()
@@ -350,14 +404,16 @@ class CarApp(App):
     def pauseCheck(self, dt):
         if self.paused == False:
             self.parent.update()
+            print(dt)
         else:
             if self.last_size != self.parent.size:
+                print("resized")
                 global longueur
                 global largeur
                 longueur = self.parent.width
                 largeur = self.parent.height
                 self.parent.car.center[0] = longueur * 0.5
-                self.parent.car.center[1] = largeur * 0.25
+                self.parent.car.center[1] = largeur * 0.125
                 self.painter.canvas.clear()
                 init()
                 self.parent.update()
@@ -365,6 +421,7 @@ class CarApp(App):
                 print('goals cleared')
                 self.last_size[0] = self.parent.size[0]
                 self.last_size[1] = self.parent.size[1]
+                shrink_updated = False
 
     def pauseSwitch(self,obj):
         self.paused = 1 - self.paused
