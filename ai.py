@@ -21,9 +21,9 @@ class Network(nn.Module):
         super(Network, self).__init__()
         self.input_sizse = input_size
         self.nb_action = nb_action
-        self.fc1 = nn.Linear(self.input_sizse, 50)
-        self.fc2 = nn.Linear(50, 90)
-        self.fc3 = nn.Linear(90, self.nb_action)
+        self.fc1 = nn.Linear(self.input_sizse, 256)
+        self.fc2 = nn.Linear(256, 512)
+        self.fc3 = nn.Linear(512, self.nb_action)
 
     def forward(self, state):
         x = F.relu(self.fc1(state))
@@ -77,13 +77,13 @@ class Dqn():
         outputs = self.model(batch_state).gather(1, batch_action.unsqueeze(1)).squeeze(1)
         next_outputs = self.model(batch_next_state).detach().max(1)[0]
         target = batch_reward + self.gamma * next_outputs
-        td_loss = F.smooth_l1_loss(outputs, target)
+        td_loss = F.mse_loss(outputs, target)
         self.optimizer.zero_grad()
         td_loss.backward(retain_variables = True)
         self.optimizer.step()
 
     def update(self, reward, new_signal):
-        print(new_signal)
+        #print(new_signal)
         new_state = torch.Tensor(new_signal).float().unsqueeze(0)
         self.mem.push((self.last_state, new_state, torch.LongTensor([int (self.last_action)]), torch.Tensor([self.last_reward])))
         action = self.select_action(new_state)
