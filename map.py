@@ -33,7 +33,7 @@ n_points = 0
 length = 0
 
 # Getting our AI, which we call "brain", and that contains our neural network that represents our Q-function
-action2rotation = [0,15,-15]
+action2rotation = [0,20,-20]
 last_reward = 0
 scores = []
 
@@ -95,13 +95,13 @@ class Car(Widget):
 
     def getPolarLidar(self, num, box_size):
          result = [-1] * num
-         pt = self.center
+         pt = self.pos
          rotation = self.velocity
 
          clamp = lambda n, minn, maxn: max(min(maxn, n), minn)
          half = int(math.floor(box_size / 2))
 
-         x_range = range( clamp(int(pt[0] - half), 0, longueur)  , clamp(int(pt[0] + half), 0, longueur)  )
+         x_range = range( clamp(int(pt[0] - half), 0, longueur)  , clamp(int(pt[0] + half), 0, longueur))
          y_range = range(   clamp(int(pt[1] - half), 0, largeur) , clamp(int(pt[1] + half), 0, largeur))
 
          st = time.time()
@@ -131,7 +131,7 @@ class Car(Widget):
     def getShrinkPolarLidar(self, num, box_size, shrink_factor):
         global shrink_sand
         result = [-1] * num
-        pt = [self.center[0], self.center[1]]
+        pt = [self.pos[0], self.pos[1]]
         pt[0] = pt[0] / shrink_factor
         pt[1] = pt[1] / shrink_factor
         rotation = self.velocity
@@ -139,15 +139,21 @@ class Car(Widget):
         clamp = lambda n, minn, maxn: max(min(maxn, n), minn)
         half = int(math.floor(box_size / 2 / shrink_factor))
 
-        x_range = range( clamp(int(pt[0] - half), 0, longueur / 2 - 1)  , clamp(int(pt[0] + half), 0, longueur / 2 - 1)  )
-        y_range = range( clamp(int(pt[1] - half), 0, largeur / 2 - 1) , clamp(int(pt[1] + half), 0, largeur / 2 - 1))
+        width = len(shrink_sand)
+        height = len(shrink_sand[0])
+
+        width = len(shrink_sand)
+        height = len(shrink_sand[0])
+
+        x_range = range( clamp(int(pt[0] - half), 0, width - 1)  , clamp(int(pt[0] + half), 0, width - 1)  )
+        y_range = range( clamp(int(pt[1] - half), 0, height - 1) , clamp(int(pt[1] + half), 0, height - 1))
 
         st = time.time()
         i = 0
         for px in x_range:
          for py in y_range:
              i += 1
-             if shrink_sand[px][py] != 0 or px == 0 or px == largeur - 1 or py == 0 or py == largeur - 1:
+             if shrink_sand[px][py] != 0 or px == 0 or px == width - 1 or py == 0 or py == height - 1:
                  #print((px, py))
                  dx = px - pt[0]
                  dy = py - pt[1]
@@ -184,7 +190,7 @@ class Car(Widget):
             if count != 0:
                 result.append(sum / count)
             else:
-                result.append(0)
+                result.append(-1)
             result.append(count)
         return result
 
@@ -238,7 +244,7 @@ class Game(Widget):
         self.goals = goals
         self.goal_index = 0
         self.consecutive_pos = 0
-        self.goal_num = 9
+        self.goal_num = 90
 
     def update(self):
 
@@ -270,26 +276,34 @@ class Game(Widget):
         last_signal.append(orientation)
         last_signal.append(-orientation)
 
-        if last_reward > 0:
-            if self.consecutive_pos > self.goal_num:
+        if last_reward >= 0:
+            if self.consecutive_pos > self.goal_num and False:
                 self.goal_num += 30
                 self.brain.save(str(datetime.datetime.now()))
             self.consecutive_pos += 1
+            pass
         else:
             self.consecutive_pos = 0
+
         action = self.brain.update(last_reward, last_signal)
         scores.append(self.brain.score())
         rotation = action2rotation[action]
         self.car.move(rotation)
-        self.circle.center = self.car.center
+        self.circle.center = self.car.pos
         distance = np.sqrt((self.car.x - goal_x)**2 + (self.car.y - goal_y)**2)
         self.ball1.pos = self.car.sensor1
         self.ball2.pos = self.car.sensor2
         self.ball3.pos = self.car.sensor3
 
         if sand[int(self.car.x),int(self.car.y)] > 0:
-            self.car.velocity = Vector(1, 0).rotate(self.car.angle)
-            last_reward = -1
+            #self.car.velocity = Vector(1, 0).rotate(self.car.angle)
+            last_reward = -1.5
+
+            # backward
+            new_v = Vector(*self.car.velocity)
+            new_v = new_v * -2
+            self.car.pos = new_v + self.car.pos
+
         else: # otherwise
             self.car.velocity = Vector(6, 0).rotate(self.car.angle)
             last_reward = -0.2
@@ -298,18 +312,18 @@ class Game(Widget):
 
         if self.car.x < 10:
             self.car.x = 10
-            last_reward = -1
+            last_reward = -1.5
         if self.car.x > self.width - 10:
             self.car.x = self.width - 10
-            last_reward = -1
+            last_reward = -1.5
         if self.car.y < 10:
             self.car.y = 10
-            last_reward = -1
+            last_reward = -1.5
         if self.car.y > self.height - 10:
             self.car.y = self.height - 10
-            last_reward = -1
+            last_reward = -1.5
 
-        if distance < 50:
+        if distance < 70:
             self.updateGoal()
         last_distance = distance
 
@@ -354,7 +368,7 @@ class MyPaintWidget(Widget):
                 y = int(touch.y)
                 length += np.sqrt(max((x - last_x)**2 + (y - last_y)**2, 2))
                 n_points += 1.
-                touch.ud['line'].width = int(30)
+                touch.ud['line'].width = int(15)
                 sand[int(touch.x) - 15 : int(touch.x) + 15, int(touch.y) - 15 : int(touch.y) + 15] = 1
                 last_x = x
                 last_y = y
@@ -373,7 +387,7 @@ class CarApp(App):
 
         self.parent = Game()
         parent = self.parent
-        sec_num = 36
+        sec_num = 10
         box_size = 400
         self.brain = Dqn(sec_num * 2 + 2,3,0.9)
 
@@ -421,12 +435,13 @@ class CarApp(App):
                 global largeur
                 longueur = self.parent.width
                 largeur = self.parent.height
-                self.parent.car.center[0] = longueur * 0.5
-                self.parent.car.center[1] = largeur * 0.125
+                self.parent.car.pos[0] = longueur * 0.5
+                self.parent.car.pos[1] = largeur * 0.125
                 self.painter.canvas.clear()
                 init()
                 self.parent.update()
-                del self.goals[:]
+                while len(self.goals) > 0:
+                    self.goals.pop()
                 print('goals cleared')
                 self.last_size[0] = self.parent.size[0]
                 self.last_size[1] = self.parent.size[1]

@@ -21,12 +21,14 @@ class Network(nn.Module):
         super(Network, self).__init__()
         self.input_sizse = input_size
         self.nb_action = nb_action
-        self.fc1 = nn.Linear(self.input_sizse, 100)
-        self.fc2 = nn.Linear(100, self.nb_action)
+        self.fc1 = nn.Linear(self.input_sizse, 50)
+        self.fc2 = nn.Linear(50, 90)
+        self.fc3 = nn.Linear(90, self.nb_action)
 
     def forward(self, state):
         x = F.relu(self.fc1(state))
-        x = self.fc2(x)
+        x = F.relu(self.fc2(x))
+        x = F.relu(self.fc3(x))
         return x
 
 # implementing experience Replay
@@ -56,7 +58,7 @@ class Dqn():
         self.model = Network(input_size, nb_action)
         self.mem = ReplayMemory(100000)
 
-        self.optimizer = optim.Adam( self.model.parameters(), lr = 0.001)
+        self.optimizer = optim.Adam( self.model.parameters(), lr = 0.0001)
 
         self.last_state = torch.Tensor(input_size).unsqueeze(0)
         self.last_action = 0
@@ -66,7 +68,8 @@ class Dqn():
 
     def select_action(self, state):
         guess = self.model(Variable(state, volatile = True))
-        probs = F.softmax(guess * 7)  # temperature = 7, higher => higher certainty
+        #print(guess)
+        probs = F.softmax(guess * 2)  # temperature = 7, higher => higher certainty
         action = probs.multinomial()
         return action.data[0,0]
 
@@ -80,6 +83,7 @@ class Dqn():
         self.optimizer.step()
 
     def update(self, reward, new_signal):
+        print(new_signal)
         new_state = torch.Tensor(new_signal).float().unsqueeze(0)
         self.mem.push((self.last_state, new_state, torch.LongTensor([int (self.last_action)]), torch.Tensor([self.last_reward])))
         action = self.select_action(new_state)
