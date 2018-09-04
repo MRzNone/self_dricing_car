@@ -21,9 +21,9 @@ class Network(nn.Module):
         super(Network, self).__init__()
         self.input_sizse = input_size
         self.nb_action = nb_action
-        self.fc1 = nn.Linear(self.input_sizse, 256)
-        self.fc2 = nn.Linear(256, 512)
-        self.fc3 = nn.Linear(512, self.nb_action)
+        self.fc1 = nn.Linear(self.input_sizse, 90)
+        self.fc2 = nn.Linear(90, 150)
+        self.fc3 = nn.Linear(150, self.nb_action)
 
     def forward(self, state):
         x = F.relu(self.fc1(state))
@@ -63,13 +63,14 @@ class Dqn():
         self.last_state = torch.Tensor(input_size).unsqueeze(0)
         self.last_action = 0
         self.last_reward = 0
+        self.epoch = 0
         self.ran = 0
         self.load()
 
     def select_action(self, state):
         guess = self.model(Variable(state, volatile = True))
         #print(guess)
-        probs = F.softmax(guess * 2)  # temperature = 7, higher => higher certainty
+        probs = F.softmax(guess * 10)  # temperature = 7, higher => higher certainty
         action = probs.multinomial()
         return action.data[0,0]
 
@@ -83,7 +84,7 @@ class Dqn():
         self.optimizer.step()
 
     def update(self, reward, new_signal):
-        #print(new_signal)
+        print(new_signal)
         new_state = torch.Tensor(new_signal).float().unsqueeze(0)
         self.mem.push((self.last_state, new_state, torch.LongTensor([int (self.last_action)]), torch.Tensor([self.last_reward])))
         action = self.select_action(new_state)
@@ -92,9 +93,11 @@ class Dqn():
             self.learn(batch_state, batch_next_state, batch_action, batch_reward)
 
             self.ran += 1
-            if self.ran >= 100:
+            self.epoch += 1
+            if self.ran >= 500:
                 self.ran = 0
                 self.save()
+            print("Epoch " + str(self.epoch) + ", reward:  " + str( self.score() ))
         self.last_action = action
         self.last_reward = reward
         self.last_state = new_state
